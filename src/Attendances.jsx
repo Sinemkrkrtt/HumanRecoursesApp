@@ -1,9 +1,8 @@
-// AttendancePage.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Grid, Card, CardContent, Typography, TextField, Select, MenuItem,
     Button, TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
-    Paper, IconButton, Tooltip
+    Paper, IconButton, Tooltip, CircularProgress
 } from '@mui/material';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import EditIcon from '@mui/icons-material/Edit';
@@ -14,27 +13,7 @@ import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, Legend
 } from 'recharts';
 
-// örnek attendance verisi
-const sampleLogs = [
-    { employee: 'Ahmet Yılmaz', department: 'IT', date: '2025-11-24', checkIn: '08:45', checkOut: '17:10', status: 'Present', minutesLate: 15 },
-    { employee: 'Ayşe Kuzey', department: 'HR', date: '2025-11-24', checkIn: '09:05', checkOut: '17:00', status: 'Late', minutesLate: 35 },
-    { employee: 'Mehmet Talaşoğlu', department: 'Finance', date: '2025-11-24', checkIn: '', checkOut: '', status: 'Absent', minutesLate: 0 },
-    { employee: 'Selin Gören', department: 'Marketing', date: '2025-11-24', checkIn: '08:55', checkOut: '16:50', status: 'Present', minutesLate: 5 },
-    { employee: 'Can Ahmetoğulları', department: 'Sales', date: '2025-11-24', checkIn: '09:20', checkOut: '17:05', status: 'Late', minutesLate: 50 },
-    { employee: 'Burak Demir', department: 'IT', date: '2025-11-23', checkIn: '08:40', checkOut: '17:00', status: 'Present', minutesLate: 0 },
-    { employee: 'Derya Kaya', department: 'Finance', date: '2025-11-23', checkIn: '09:10', checkOut: '17:10', status: 'Late', minutesLate: 30 },
-    // ... (isteğe göre çoğalt)
-];
-
-// küçük yardımcı: tarih formatlama
-const formatDate = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (isNaN(d)) return iso; // eğer string '2025-11-24' ise
-    return d.toLocaleDateString();
-};
-
-export default function Attendance() {
+export default function Attendances() {
     const [drawerOpen, setDrawerOpen] = useState(false);
 
     // filtreler
@@ -43,7 +22,28 @@ export default function Attendance() {
     const [department, setDepartment] = useState('All');
     const [query, setQuery] = useState('');
 
-    const [logs, setLogs] = useState(sampleLogs);
+    // VERİTABANI BAĞLANTISI İÇİN STATE'LER
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // 1. Verileri Backend'den Çekme
+    const fetchLogs = () => {
+        fetch('http://localhost:5001/api/attendance') // PORT 5001
+            .then(res => res.json())
+            .then(data => {
+                console.log("Attendance Verisi:", data);
+                setLogs(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Hata:", err);
+                setLoading(false);
+            });
+    };
+
+    useEffect(() => {
+        fetchLogs();
+    }, []);
 
     // departman listesi otomatik çıkarılıyor
     const departments = useMemo(() => {
@@ -55,7 +55,7 @@ export default function Attendance() {
     const filtered = useMemo(() => {
         return logs.filter(l => {
             // tarih aralığı
-            const logDate = new Date(l.date + 'T00:00:00');
+            const logDate = new Date(l.date + 'T00:00:00'); // Tarih formatı YYYY-MM-DD
             if (fromDate) {
                 const f = new Date(fromDate + 'T00:00:00');
                 if (logDate < f) return false;
@@ -103,9 +103,8 @@ export default function Attendance() {
         return { totalEmployees, present, absent, late, avgTime, todayISO };
     }, [logs, toDate]);
 
-    // chart verisi: gec gelme sayısı (gün bazında) filtered üzerinden create
+    // chart verisi
     const chartData = useMemo(() => {
-        // group by date
         const map = {};
         filtered.forEach(l => {
             if (!map[l.date]) map[l.date] = { date: l.date, late: 0, present: 0, absent: 0 };
@@ -113,7 +112,6 @@ export default function Attendance() {
             if (l.status === 'Present') map[l.date].present += 1;
             if (l.status === 'Absent') map[l.date].absent += 1;
         });
-        // sort by date asc
         return Object.values(map).sort((a, b) => (a.date > b.date ? 1 : -1));
     }, [filtered]);
 
@@ -131,14 +129,21 @@ export default function Attendance() {
         URL.revokeObjectURL(url);
     };
 
-    // basit edit handler (modal yok, örnek amaçlı güncelleme)
+    // 2. Basit Edit Handler (Veritabanını Günceller)
     const handleQuickEdit = (index) => {
-        // örnek: toggle absent <-> present
-        const updated = [...logs];
-        const idxGlobal = logs.indexOf(filtered[index]);
-        if (idxGlobal === -1) return;
-        updated[idxGlobal].status = updated[idxGlobal].status === 'Absent' ? 'Present' : 'Absent';
-        setLogs(updated);
+        const item = filtered[index];
+        const newStatus = item.status === 'Absent' ? 'Present' : 'Absent';
+
+        // Optimistik güncelleme (Hemen ekranda göster)
+        const updatedLogs = logs.map(l => l.id === item.id ? { ...l, status: newStatus } : l);
+        setLogs(updatedLogs);
+
+        // Backend'e gönder
+        fetch(`http://localhost:5001/api/attendance/${item.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        }).catch(err => console.error("Güncelleme hatası", err));
     };
 
     return (
@@ -173,7 +178,7 @@ export default function Attendance() {
                     <Grid item xs={12} md={3}>
                         <Select
                             fullWidth
-                            size="medıum"
+                            size="medium"
                             value={department}
                             onChange={(e) => setDepartment(e.target.value)}
                             sx={{ minWidth: 140, mr: 4, width: 200, }}
@@ -208,6 +213,8 @@ export default function Attendance() {
                         </Button>
                     </Grid>
                 </Grid>
+
+                {loading && <Box display="flex" justifyContent="center"><CircularProgress /></Box>}
 
                 {/* Quick Stats */}
                 <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -253,16 +260,17 @@ export default function Attendance() {
                 <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                         <Card sx={{ p: 2, borderRadius: 3, boxShadow: "0px 8px 20px rgba(0,0,0,0.08)" }}>
-                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Late Arrivals (filtered)</Typography>
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>Attendance Overview (Last 7 Days)</Typography>
                             <Box sx={{ mr: 15, height: 380, width: 350 }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={chartData}>
-                                        <XAxis dataKey="date" tickFormatter={(d) => d} />
+                                        <XAxis dataKey="date" tickFormatter={(d) => d.slice(5)} />
                                         <YAxis />
                                         <ReTooltip />
                                         <Legend />
                                         <Bar dataKey="late" name="Late" barSize={18} fill="#FFA500" />
                                         <Bar dataKey="present" name="Present" barSize={18} fill="#6A5ACD" />
+                                        <Bar dataKey="absent" name="Absent" barSize={18} fill="#D32F2F" />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </Box>
@@ -305,7 +313,7 @@ export default function Attendance() {
                                                     }}>{r.status}</Box>
                                                 </TableCell>
                                                 <TableCell align="center">
-                                                    <Tooltip title="Quick toggle absent/present (example)">
+                                                    <Tooltip title="Quick toggle Absent/Present">
                                                         <IconButton size="small" onClick={() => handleQuickEdit(i)}>
                                                             <EditIcon fontSize="small" />
                                                         </IconButton>

@@ -1,19 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-    Box,
-    Grid,
-    Card,
-    CardContent,
-    Typography,
-    TextField,
-    InputAdornment,
-    Select,
-    MenuItem,
-    Chip,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    Avatar,
+    Box, Grid, Card, CardContent, Typography, TextField, InputAdornment,
+    Select, MenuItem, Chip, Dialog, DialogTitle, DialogContent, Avatar, CircularProgress
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import EventIcon from "@mui/icons-material/Event";
@@ -21,37 +9,6 @@ import InfoIcon from "@mui/icons-material/Info";
 import WarningIcon from "@mui/icons-material/Warning";
 import CustomAppBar from "./CustomAppBar";
 import DrawerComponent from "./DrawerComponent";
-
-const initialAnnouncements = [
-    {
-        title: "Year-end Party Announcement",
-        category: "Events",
-        date: "2025-12-20",
-        content: "We are excited to invite all employees to our year-end party...",
-        importance: "Normal",
-    },
-    {
-        title: "Payroll Delay Notification",
-        category: "HR",
-        date: "2025-11-25",
-        content: "Payroll for November will be delayed due to system maintenance...",
-        importance: "High",
-    },
-    {
-        title: "New IT Security Guidelines",
-        category: "IT",
-        date: "2025-11-28",
-        content: "All employees must update their passwords and enable 2FA...",
-        importance: "Normal",
-    },
-    {
-        title: "Mandatory Training Session",
-        category: "Management",
-        date: "2025-12-01",
-        content: "All staff must attend the upcoming training on workplace safety...",
-        importance: "High",
-    },
-];
 
 const categoryColors = {
     HR: "#FF8C00",
@@ -73,7 +30,26 @@ export default function Announcements() {
     const [categoryFilter, setCategoryFilter] = useState("All");
     const [selected, setSelected] = useState(null);
 
-    const filteredAnnouncements = initialAnnouncements.filter((ann) => {
+    // VERİTABANI STATE'LERİ
+    const [announcements, setAnnouncements] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // 1. Verileri Çekme
+    useEffect(() => {
+        fetch('http://localhost:5001/api/announcements') // Port 5001
+            .then(res => res.json())
+            .then(data => {
+                console.log("Duyurular:", data);
+                setAnnouncements(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Hata:", err);
+                setLoading(false);
+            });
+    }, []);
+
+    const filteredAnnouncements = announcements.filter((ann) => {
         const matchesSearch =
             ann.title.toLowerCase().includes(search.toLowerCase()) ||
             ann.content.toLowerCase().includes(search.toLowerCase());
@@ -84,23 +60,13 @@ export default function Announcements() {
 
     return (
         <Box sx={{ bgcolor: "#f5f5f5", minHeight: "100vh" }}>
-            <CustomAppBar
-                onMenuClick={() => setDrawerOpen(true)}
-                title="Announcements"
-            />
+            <CustomAppBar onMenuClick={() => setDrawerOpen(true)} title="Announcements" />
             <DrawerComponent open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
             <Box sx={{ paddingTop: "90px", paddingX: { xs: 2, sm: 4, md: 6 } }}>
+
                 {/* Search + Filter */}
-                <Box
-                    sx={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 2,
-                        mb: 4,
-                        alignItems: "center",
-                    }}
-                >
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 6, mt: 3, alignItems: "center" }}>
                     <TextField
                         placeholder="Search announcements..."
                         size="small"
@@ -110,9 +76,7 @@ export default function Announcements() {
                         sx={{ width: 250, mr: 3 }}
                         InputProps={{
                             startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon />
-                                </InputAdornment>
+                                <InputAdornment position="start"><SearchIcon /></InputAdornment>
                             ),
                         }}
                     />
@@ -130,91 +94,46 @@ export default function Announcements() {
                     </Select>
                 </Box>
 
+                {loading && <Box display="flex" justifyContent="center"><CircularProgress /></Box>}
+
                 {/* Announcement Cards */}
                 <Grid container spacing={3}>
-                    {filteredAnnouncements.length > 0 ? (
+                    {!loading && filteredAnnouncements.length > 0 ? (
                         filteredAnnouncements.map((ann, idx) => (
-                            <Grid item xs={12} sm={6} md={4} key={idx}>
+                            <Grid item xs={12} sm={6} md={4} key={ann.id || idx}>
                                 <Card
                                     sx={{
-                                        borderRadius: 3,
-                                        width: 600,
-                                        height: 150,
-                                        mb: 2,
-                                        mr: 3,
+                                        borderRadius: 3, width: 600, height: 160, mb: 2, ml: 5,
                                         boxShadow: "0px 8px 25px rgba(0,0,0,0.12)",
                                         transition: "transform 0.2s, box-shadow 0.2s",
-                                        cursor: "pointer",
-                                        overflow: "hidden",
-                                        borderLeft: `6px solid ${categoryColors[ann.category] || "#6A5ACD"
-                                            }`,
-                                        '&:hover': {
-                                            transform: "translateY(-6px)",
-                                            boxShadow: "0px 16px 35px rgba(0,0,0,0.18)",
-                                        },
+                                        cursor: "pointer", overflow: "hidden",
+                                        borderLeft: `6px solid ${categoryColors[ann.category] || "#6A5ACD"}`,
+                                        '&:hover': { transform: "translateY(-6px)", boxShadow: "0px 16px 35px rgba(0,0,0,0.18)" },
                                     }}
                                     onClick={() => setSelected(ann)}
                                 >
                                     <CardContent>
                                         <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                                            <Avatar
-                                                sx={{
-                                                    bgcolor: categoryColors[ann.category] || "#6A5ACD",
-                                                    width: 28,
-                                                    height: 28,
-                                                    mr: 1,
-                                                }}
-                                            >
+                                            <Avatar sx={{ bgcolor: categoryColors[ann.category] || "#6A5ACD", width: 28, height: 28, mr: 1 }}>
                                                 {categoryIcons[ann.category]}
                                             </Avatar>
-                                            <Typography
-                                                sx={{
-                                                    fontWeight: 700,
-                                                    fontSize: 16,
-                                                    flex: 1,
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                }}
-                                            >
+                                            <Typography sx={{ fontWeight: 700, fontSize: 16, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 {ann.title}
                                             </Typography>
                                             {ann.importance === "High" && (
-                                                <Chip
-                                                    label="IMPORTANT"
-                                                    size="small"
-                                                    sx={{
-                                                        bgcolor: "#D11A2A",
-                                                        color: "white",
-                                                        fontWeight: 700,
-                                                        ml: 1,
-                                                    }}
-                                                />
+                                                <Chip label="IMPORTANT" size="small" sx={{ bgcolor: "#D11A2A", color: "white", fontWeight: 700, ml: 1 }} />
                                             )}
                                         </Box>
-                                        <Typography sx={{ fontSize: 12, color: "#555", mb: 1 }}>
-                                            {ann.date}
-                                        </Typography>
-                                        <Typography
-                                            sx={{
-                                                fontSize: 14,
-                                                color: "#777",
-                                                display: "-webkit-box",
-                                                WebkitLineClamp: 3,
-                                                WebkitBoxOrient: "vertical",
-                                                overflow: "hidden",
-                                            }}
-                                        >
+                                        <Typography sx={{ fontSize: 12, color: "#555", mb: 1 }}>{ann.date}</Typography>
+                                        <Typography sx={{ fontSize: 14, color: "#777", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                                             {ann.content}
                                         </Typography>
                                     </CardContent>
                                 </Card>
                             </Grid>
                         ))
-                    ) : (
-                        <Typography
-                            sx={{ textAlign: "center", width: "100%", mt: 4, color: "#777" }}
-                        >
+                    ) : !loading && (
+                        <Typography sx={{ textAlign: "center", width: "100%", mt: 4, color: "#777" }}>
                             No announcements found.
                         </Typography>
                     )}
@@ -224,18 +143,11 @@ export default function Announcements() {
                 <Dialog open={!!selected} onClose={() => setSelected(null)} maxWidth="sm" fullWidth>
                     {selected && (
                         <>
-                            <DialogTitle sx={{ fontWeight: 700 }}>
-                                {selected.title}
-                            </DialogTitle>
+                            <DialogTitle sx={{ fontWeight: 700 }}>{selected.title}</DialogTitle>
                             <DialogContent>
                                 <Chip
                                     label={selected.category}
-                                    sx={{
-                                        bgcolor: categoryColors[selected.category] || "#6A5ACD",
-                                        color: "#fff",
-                                        fontWeight: 700,
-                                        mb: 2,
-                                    }}
+                                    sx={{ bgcolor: categoryColors[selected.category] || "#6A5ACD", color: "#fff", fontWeight: 700, mb: 2 }}
                                 />
                                 <Typography sx={{ mb: 1, color: "#555" }}>
                                     <strong>Date:</strong> {selected.date}

@@ -1,0 +1,1 @@
+SELECT * FROM "attendance" LIMIT 1000;

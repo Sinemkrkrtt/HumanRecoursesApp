@@ -19,6 +19,7 @@ function App() {
       <DrawerComponent />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/Home" element={<Home />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/departments" element={<Departments />} />
         <Route path="/permissions" element={<Permissions />} />

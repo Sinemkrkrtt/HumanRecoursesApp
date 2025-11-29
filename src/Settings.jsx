@@ -1,5 +1,4 @@
-// SettingsPage.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Grid,
@@ -20,7 +19,8 @@ import {
     DialogContent,
     DialogActions,
     Snackbar,
-    Alert
+    Alert,
+    CircularProgress
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
@@ -28,78 +28,125 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
-import CustomAppBar from "./CustomAppBar";
-import DrawerComponent from "./DrawerComponent";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import LockIcon from "@mui/icons-material/Lock";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import CheckIcon from "@mui/icons-material/Check";
-
-
+import CustomAppBar from "./CustomAppBar";
+import DrawerComponent from "./DrawerComponent";
 
 export default function Settings() {
-    // Drawer ile AppBar entegrasyonu
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [loading, setLoading] = useState(true); // Yükleniyor durumu
 
-    // Profile / account state
+    // --- STATE'LER (Veritabanı ile eşleşecek) ---
     const [profile, setProfile] = useState({
-        name: "Sinem Karakurt",
-        email: "sinem@example.com",
-        phone: "+90 555 555 5555",
-        position: "HR Manager",
+        name: "",
+        email: "",
+        phone: "",
+        position: "",
     });
-    const [editingProfile, setEditingProfile] = useState(false);
-    // Notifications
+
     const [notifications, setNotifications] = useState({
         email: true,
         sms: false,
         push: true,
     });
-    const [showPw, setShowPw] = useState({
-        current: false,
-        newPass: false,
-        confirm: false,
-    });
+
+    const [darkMode, setDarkMode] = useState(false);
+    const [language, setLanguage] = useState("tr");
+    // ---------------------------------------------
+
+    const [editingProfile, setEditingProfile] = useState(false);
+
+    // Şifre State'leri
+    const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
+    const [showPw, setShowPw] = useState({ current: false, newPass: false, confirm: false });
+    const [pwError, setPwError] = useState("");
+
+    // API & Diğer State'ler
+    const [apiKey, setApiKey] = useState("sk_live_51M3jK...");
+    const [apiDialogOpen, setApiDialogOpen] = useState(false);
+    const [twoFA, setTwoFA] = useState(false);
+    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+    const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
+
+    // 1. VERİLERİ BACKEND'DEN ÇEKME (GET)
+    useEffect(() => {
+        fetch('http://localhost:5001/api/settings') // Port 5001
+            .then(res => res.json())
+            .then(data => {
+                if (data) {
+                    setProfile({
+                        name: data.name,
+                        email: data.email,
+                        phone: data.phone,
+                        position: data.position
+                    });
+                    // Notifications null gelirse varsayılan obje kullan
+                    setNotifications(data.notifications || { email: true, sms: false, push: true });
+                    setDarkMode(data.dark_mode);
+                    setLanguage(data.language);
+                }
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Veri çekme hatası:", err);
+                setLoading(false);
+            });
+    }, []);
+
+    // 2. VERİLERİ BACKEND'E KAYDETME (PUT)
+    const saveAllSettings = () => {
+        const payload = {
+            ...profile,
+            notifications,
+            dark_mode: darkMode,
+            language
+        };
+
+        fetch('http://localhost:5001/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(res => res.json())
+            .then(() => {
+                setSnack({ open: true, message: "Tüm ayarlar başarıyla kaydedildi!", severity: "success" });
+                setEditingProfile(false);
+            })
+            .catch(err => {
+                console.error("Kaydetme hatası:", err);
+                setSnack({ open: true, message: "Kaydetme başarısız.", severity: "error" });
+            });
+    };
+
+    // --- HANDLERS (Orijinal Koddan) ---
+    const handleProfileChange = (field) => (e) => {
+        setProfile(prev => ({ ...prev, [field]: e.target.value }));
+    };
+
+    const toggleNotification = (field) => (e) => {
+        setNotifications(prev => ({ ...prev, [field]: e.target.checked }));
+    };
 
     const toggleShowPw = (field) => {
         setShowPw(prev => ({ ...prev, [field]: !prev[field] }));
     };
 
-    // Theme & language
-    const [darkMode, setDarkMode] = useState(false);
-    const [language, setLanguage] = useState("tr");
-
-    // Integrations / API
-    const [apiKey, setApiKey] = useState("sk_live_****************");
-    const [apiDialogOpen, setApiDialogOpen] = useState(false);
-
-    // 2FA & privacy
-    const [twoFA, setTwoFA] = useState(false);
-    const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-
-    // Snackbar
-    const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
-
-    // Handlers
-    const handleProfileChange = (field) => (e) => {
-        setProfile(prev => ({ ...prev, [field]: e.target.value }));
+    const handlePasswordChange = (field) => (e) => {
+        setPasswords(prev => ({ ...prev, [field]: e.target.value }));
     };
 
-    const saveProfile = () => {
-        setEditingProfile(false);
-        setSnack({ open: true, message: "Profil güncellendi.", severity: "success" });
-        // burada backend'e kaydetme isteği atabilirsiniz
-        console.log("Profile saved:", profile);
-    };
-
-    const cancelProfileEdit = () => {
-        setEditingProfile(false);
-        // isterseniz revert işlemi burada yapılır (örnek için basit bırakıldı)
-    };
-
-    const toggleNotification = (field) => (e) => {
-        setNotifications(prev => ({ ...prev, [field]: e.target.checked }));
+    const savePassword = () => {
+        if (passwords.newPass !== passwords.confirm) {
+            setPwError("New password and confirmation do not match.");
+            return;
+        }
+        setPwError("");
+        setSnack({ open: true, message: "Şifre değiştirildi (Demo).", severity: "success" });
+        setPasswords({ current: "", newPass: "", confirm: "" });
     };
 
     const handleCopyApiKey = async () => {
@@ -112,7 +159,6 @@ export default function Settings() {
     };
 
     const handleRotateApiKey = () => {
-        // örnek yeni anahtar üretimi (gerçekte backend ile yapılmalı)
         const newKey = "sk_live_" + Math.random().toString(36).slice(2, 18);
         setApiKey(newKey);
         setSnack({ open: true, message: "Yeni API anahtarı oluşturuldu.", severity: "success" });
@@ -121,48 +167,20 @@ export default function Settings() {
     const handleDeleteAccount = () => {
         setConfirmDeleteOpen(false);
         setSnack({ open: true, message: "Hesap silme isteği alındı (demo).", severity: "info" });
-        console.log("Account deletion requested");
-    };
-    const [passwords, setPasswords] = useState({
-        current: "",
-        newPass: "",
-        confirm: ""
-    });
-
-
-    const [show, setShow] = useState({
-        current: false,
-        newPass: false,
-        confirm: false
-    });
-
-
-    const [pwError, setPwError] = useState("");
-
-
-    const handlePasswordChange = (field) => (e) => {
-        setPasswords(prev => ({ ...prev, [field]: e.target.value }));
     };
 
-
-    const toggleVisibility = (field) => {
-        setShow(prev => ({ ...prev, [field]: !prev[field] }));
-    };
-
-
-    const savePassword = () => {
-        if (passwords.newPass !== passwords.confirm) {
-            setPwError("New password and confirmation do not match.");
-            return;
-        }
-        setPwError("");
-        alert("Password updated successfully!");
-    };
+    if (loading) {
+        return (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', bgcolor: "#f5f5f5" }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
 
     return (
         <Box sx={{
             minHeight: "100vh",
-            bgcolor: darkMode ? "#121217" : "#f5f5f5",
+            bgcolor: darkMode ? "#121217" : "#f5f5f5", // Dark Mode Veritabanından
             color: darkMode ? "#eaeaf0" : "inherit",
             pb: 6
         }}>
@@ -181,7 +199,7 @@ export default function Settings() {
                             <CardContent>
                                 <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 1 }}>
                                     <Avatar sx={{ width: 72, height: 72, bgcolor: "#A265E7FF", fontSize: 24 }}>
-                                        {profile.name ? profile.name.split(" ").map(n => n[0].toUpperCase()).join("") : ""}
+                                        {profile.name ? profile.name.split(" ").map(n => n[0].toUpperCase()).join("") : "U"}
                                     </Avatar>
 
                                     <Box sx={{ flex: 1 }}>
@@ -244,8 +262,9 @@ export default function Settings() {
 
                                 {editingProfile && (
                                     <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 3 }}>
-                                        <Button startIcon={<CancelIcon />} color="inherit" variant="outlined" onClick={cancelProfileEdit}>Cancel</Button>
-                                        <Button startIcon={<SaveIcon />} variant="contained" onClick={saveProfile}>Save</Button>
+                                        <Button startIcon={<CancelIcon />} color="inherit" variant="outlined" onClick={() => setEditingProfile(false)}>Cancel</Button>
+                                        {/* Save Sadece Profili değil her şeyi kaydeder */}
+                                        <Button startIcon={<SaveIcon />} variant="contained" onClick={saveAllSettings}>Save</Button>
                                     </Box>
                                 )}
                             </CardContent>
@@ -255,7 +274,7 @@ export default function Settings() {
 
                             {/* Left column: Change Password */}
                             <Grid item xs={12} md={6} sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                                <Card sx={{ width: 450, borderRadius: 3, boxShadow: "0 8px 20px rgba(0,0,0,0.08)", p: 3 }}>
+                                <Card sx={{ width: 450, height: 350, borderRadius: 3, boxShadow: "0 8px 20px rgba(0,0,0,0.08)", p: 3 }}>
                                     <CardContent>
                                         <Typography sx={{ fontWeight: 700, mb: 4, fontSize: "1.2rem" }}>Change Password</Typography>
 
@@ -392,8 +411,9 @@ export default function Settings() {
                                         </Card>
                                     </Grid>
 
+
                                     {/* Integrations / API */}
-                                    <Card sx={{ borderRadius: 3, boxShadow: "0 8px 20px rgba(0,0,0,0.06)", mt: 3 }}>
+                                    <Card sx={{ borderRadius: 3, boxShadow: "0 8px 20px rgba(0,0,0,0.06)", mt: 2, height: 195 }}>
                                         <CardContent>
                                             <Typography sx={{ fontSize: 19, fontWeight: 700, mb: 2 }}>Integrations & API</Typography>
                                             <Typography sx={{ fontSize: 13, color: darkMode ? "#bfc0c8" : "#666", mb: 1 }}>
@@ -471,11 +491,12 @@ export default function Settings() {
                 </Grid>
 
                 {/* Action row: Save all */}
-                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 4 }}>
-                    <Button sx={{ width: 140, height: 50, ml: 3, mt: 1, fontSize: 13, color: '#E66464FF' }} startIcon={<CancelIcon />} variant="text" onClick={() => { /* revert demo */ window.location.reload(); }}>
+                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 4, mb: 10 }}>
+                    <Button sx={{ width: 140, height: 50, ml: 3, mt: 1, fontSize: 13, color: '#E66464FF' }} startIcon={<CancelIcon />} variant="text" onClick={() => window.location.reload()}>
                         Cancel
                     </Button>
-                    <Button sx={{ width: 140, height: 50, mr: 2, backgroundColor: '#6B21F3FF', fontSize: 13 }} startIcon={<SaveIcon />} variant="contained" onClick={() => setSnack({ open: true, message: "Settings saved.", severity: "success" })}>
+                    {/* Bu buton da veritabanına kayıt yapar */}
+                    <Button sx={{ width: 140, height: 50, mr: 2, backgroundColor: '#6B21F3FF', fontSize: 13 }} startIcon={<SaveIcon />} variant="contained" onClick={saveAllSettings}>
                         Save all
                     </Button>
                 </Box>
@@ -486,7 +507,6 @@ export default function Settings() {
                 <DialogTitle>Manage Integrations</DialogTitle>
                 <DialogContent>
                     <Typography sx={{ mb: 2 }}>Here you can connect external apps (example only).</Typography>
-                    {/* örnek içerik */}
                     <Button variant="outlined" sx={{ mr: 1 }}>Connect Slack</Button>
                     <Button variant="outlined">Connect Google</Button>
                 </DialogContent>
@@ -516,4 +536,3 @@ export default function Settings() {
         </Box >
     );
 }
-

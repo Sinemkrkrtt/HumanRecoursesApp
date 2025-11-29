@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, Grid, Card, CardContent, Typography, TextField,
-    InputAdornment, IconButton, Button, Divider
+    InputAdornment, IconButton, Button, Divider, CircularProgress, Alert
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -11,24 +11,38 @@ import SearchIcon from '@mui/icons-material/Search';
 import CustomAppBar from './CustomAppBar';
 import DrawerComponent from './DrawerComponent';
 
-const initialDepartments = [
-    { name: "IT", head: "Ahmet Yılmaz", employees: 12, created: "01.01.2020" },
-    { name: "HR", head: "Ayşe Kuzey", employees: 8, created: "15.02.2020" },
-    { name: "FINANCE", head: "Mehmet Talaşoğlu", employees: 5, created: "10.03.2020" },
-    { name: "MARKETING", head: "Selin Gören", employees: 7, created: "20.04.2020" },
-    { name: "SALES", head: "Can Ahmetoğulları", employees: 10, created: "05.05.2020" },
-    { name: "CUSTOMER SUPPORT", head: "Elif Bilir", employees: 9, created: "12.06.2020" },
-    { name: "R&D", head: "Hakan Cevahir", employees: 6, created: "18.07.2020" },
-    { name: "OPERATIONS", head: "Berk Duman", employees: 11, created: "23.08.2020" },
-    { name: "LEGAL", head: "Fatma Akarsu", employees: 4, created: "30.09.2020" },
-    { name: "PROCUREMENT", head: "Emre Taştan", employees: 5, created: "15.10.2020" },
-];
-
-function DepartmentsPage() {
+function Departments() {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [search, setSearch] = useState("");
-    const [departments, setDepartments] = useState(initialDepartments);
 
+    // 1. Verileri tutacak kutularımız
+    const [departments, setDepartments] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    // 2. Sayfa açılınca verileri çek
+    useEffect(() => {
+        fetch('http://localhost:5001/api/departments')
+            .then(response => {
+                // Eğer sunucudan cevap gelmezse hata fırlat
+                if (!response.ok) {
+                    throw new Error('Veri çekilemedi! Backend çalışıyor mu?');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("Gelen Veri:", data); // Konsoldan kontrol etmek için
+                setDepartments(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Hata:", err);
+                setError("Veriler yüklenemedi. Lütfen 'node server.js'in çalıştığından emin olun.");
+                setLoading(false);
+            });
+    }, []);
+
+    // Arama filtresi
     const filteredDepartments = departments.filter(dep =>
         dep.name.toLowerCase().includes(search.toLowerCase())
     );
@@ -45,29 +59,16 @@ function DepartmentsPage() {
             <DrawerComponent open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
             <Box sx={{ paddingTop: '90px', paddingX: { xs: 2, sm: 4, md: 6 } }}>
-                {/* Header: Search + Add */}
-                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 4 }}>
+
+                {/* Arama ve Ekleme Butonu */}
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: 'center', gap: 2, mt: 2, mb: 3, }}>
                     <TextField
                         label="Search Departments"
                         variant="outlined"
                         size="small"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        sx={{
-                            marginLeft: 3,
-                            marginTop: 2,
-                            width: { xs: '100%', sm: 300 },
-                            '& .MuiOutlinedInput-root': {
-                                color: '#777',
-                                '& fieldset': { borderColor: '#ccc' },
-                                '&:hover fieldset': { borderColor: '#6B05A7FF' },
-                                '&.Mui-focused fieldset': { borderColor: '#6B05A7FF' },
-                            },
-                            '& .MuiInputLabel-root': {
-                                color: '#777',
-                                '&.Mui-focused': { color: '#686869FF' },
-                            },
-                        }}
+                        sx={{ width: { xs: '100%', sm: 300 }, bgcolor: 'white' }}
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
@@ -76,89 +77,77 @@ function DepartmentsPage() {
                             ),
                         }}
                     />
-
                     <Button
                         variant="contained"
                         startIcon={<AddIcon />}
-                        sx={{ fontSize: 14, bgcolor: '#AE4BFFFF', '&:hover': { bgcolor: '#BE8ADDFF' }, whiteSpace: 'nowrap' }}
+                        sx={{ mt: 2, mb: 3, bgcolor: '#AE4BFFFF', '&:hover': { bgcolor: '#BE8ADDFF' } }}
                     >
                         Add Department
                     </Button>
                 </Box>
-                {/* Department Cards - Modern Minimal Style */}
+
+                {/* HATA veya YÜKLENİYOR Durumları */}
+                {loading && <Box display="flex" justifyContent="center" m={5}><CircularProgress /></Box>}
+                {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+                {/* KARTLAR */}
                 <Grid container spacing={3}>
-                    {filteredDepartments.map((dep, idx) => (
-                        <Grid item xs={12} sm={6} md={4} key={idx}>
+                    {!loading && !error && filteredDepartments.map((dep, idx) => (
+                        <Grid item xs={12} sm={6} md={4} key={dep.id || idx}>
                             <Card sx={{
                                 borderRadius: 3,
-                                overflow: 'hidden',
                                 boxShadow: "0px 6px 18px rgba(0,0,0,0.08)",
-                                transition: 'transform 0.2s, box-shadow 0.2s',
                                 '&:hover': { transform: 'translateY(-5px)', boxShadow: '0px 15px 30px rgba(0,0,0,0.2)' },
+                                transition: 'all 0.3s',
+                                height: 230,
+                                width: 420,
                                 display: 'flex',
                                 flexDirection: 'column',
-                                width: 400,
-                                height: 260,
-                                marginLeft: 3,
+                                mt: 2,
+                                mb: 1,
                             }}>
-                                {/* Header Band */}
-                                <Box sx={{
-                                    bgcolor: '#FFFFFFFF',
-                                    color: '#4F4F4FFF',
-                                    textAlign: 'center',
-                                    fontWeight: 600,
-                                    fontSize: 20,
-                                    letterSpacing: 0.9,
-                                    mt: 2,
-                                    mb: 1,
-                                }}>
-                                    {dep.name}
+                                {/* Departman İsmi */}
+                                <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#fff' }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#4F4F4FFF' }}>
+                                        {dep.name}
+                                    </Typography>
                                 </Box>
+                                <Divider sx={{ bgcolor: '#9D01B9FF', height: 2 }} />
 
-                                <Divider sx={{ bgcolor: '#9D01B9FF', height: 2, my: 1 }} />
-
-
-
-                                <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pt: 3 }}>
-                                    {/* Info Boxes */}
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1.5, borderRadius: 1, textAlign: 'center', flex: 1, mr: 1 }}>
-                                            <Typography sx={{ mb: 1, mt: 1, fontSize: 14, color: '#555', fontWeight: 600, borderBottom: '1px solid #8B07D8FF' }}>Head</Typography>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 400 }}>{dep.head}</Typography>
+                                {/* Bilgiler */}
+                                <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                        {/* HEAD */}
+                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1, borderRadius: 1, flex: 1, textAlign: 'center' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#555', display: 'block', mb: 0.5 }}>Head</Typography>
+                                            <Typography variant="body2">{dep.head || '-'}</Typography>
                                         </Box>
-                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1.5, borderRadius: 1, textAlign: 'center', flex: 1, mx: 1 }}>
-                                            <Typography sx={{ mb: 1, mt: 1, fontSize: 14, color: '#555', fontWeight: 600, borderBottom: '1px solid #8B07D8FF' }}>Employees</Typography>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 400 }}>{dep.employees}</Typography>
+                                        {/* EMPLOYEES */}
+                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1, borderRadius: 1, flex: 1, textAlign: 'center' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#555', display: 'block', mb: 0.5 }}>Empl.</Typography>
+                                            <Typography variant="body2">{dep.employees}</Typography>
                                         </Box>
-                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1.5, borderRadius: 1, textAlign: 'center', flex: 1, ml: 1 }}>
-                                            <Typography sx={{ mb: 1, mt: 1, fontSize: 14, color: '#555', fontWeight: 600, borderBottom: '1px solid #8B07D8FF' }}>Created</Typography>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 400 }}>{dep.created}</Typography>
+                                        {/* CREATED */}
+                                        <Box sx={{ bgcolor: '#f3f3f3', p: 1, borderRadius: 1, flex: 1, textAlign: 'center' }}>
+                                            <Typography variant="caption" sx={{ fontWeight: 'bold', color: '#555', display: 'block', mb: 0.5 }}>Date</Typography>
+                                            <Typography variant="body2">{dep.created}</Typography>
                                         </Box>
                                     </Box>
 
-                                    {/* Action Buttons */}
-                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                        <IconButton color='success'><VisibilityIcon /></IconButton>
-                                        <IconButton color="secondary"><EditIcon /></IconButton>
-                                        <IconButton color="error" onClick={() => handleDelete(idx)}><DeleteIcon /></IconButton>
+                                    {/* Butonlar */}
+                                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                                        <IconButton size="small" color='success'><VisibilityIcon /></IconButton>
+                                        <IconButton size="small" color="secondary"><EditIcon /></IconButton>
+                                        <IconButton size="small" color="error" onClick={() => handleDelete(idx)}><DeleteIcon /></IconButton>
                                     </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                     ))}
-
-                    {filteredDepartments.length === 0 && (
-                        <Typography sx={{ textAlign: 'center', width: '100%', mt: 4, color: '#777' }}>
-                            No departments found.
-                        </Typography>
-                    )}
                 </Grid>
-
-
-
             </Box>
         </Box>
     );
 }
 
-export default DepartmentsPage;
+export default Departments;
